@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Schedulator</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        #ganttChartDiv {
+            display: flex;
+            flex-wrap: nowrap;
+            overflow-x: auto;
+            padding: 20px 0;
+            margin-top: 20px;
+        }
+
+        .gantt-block {
+            height: 50px;
+            border: 1px solid #333;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            color: white;
+            font-weight: bold;
+            min-width: 40px;
+        }
+
+        .process-block { background-color: #3498db; }
+        .idle-block { background-color: #bdc3c7; color: #333; }
+
+        .time-label {
+            position: absolute;
+            bottom: -20px;
+            left: 0;
+            color: black;
+            font-size: 12px;
+        }
+
+        .end-time {
+            left: auto;
+            right: 0;
+        }
+
+        #ganttChartWrapper {
+            display: flex;
+            flex-direction: row;
+            overflow-x: auto;
+            padding-bottom: 30px;
+        }
+
+        #notificationContainer {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            z-index: 1000;
+        }
+
+        .toast {
+            background: #242526;
+            color: white;
+            padding: 12px 20px;
+            border-radius: 8px;
+            margin-top: 10px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            font-family: sans-serif;
+            animation: slideIn 0.3s ease-out;
+            display: flex;
+            align-items: center;
+            min-width: 250px;
+        }
+
+        .toast.error { border-left: 5px solid #f02849; }
+        .toast.success { border-left: 5px solid #45bd62; }
+
+        @keyframes slideIn {
+            from { transform: translateX(-100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        .toast.fade-out {
+            opacity: 0;
+            transform: translateY(20px);
+            transition: all 0.5s ease;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>CPU Scheduling Simulator</h1>
+
+        <div>
+            <label for="numOfProcess">Input Number of Processes</label>
+            <input type="number" min="1" id="numOfProcess">
+            <button id="confirmProcessNum">Confirm</button>
+        </div>
+
+        <div>
+            <table border="0" cellpadding="5" id="inputTable">
+                <tr>
+                    <th>Process ID</th>
+                    <th>Arrival Time</th>
+                    <th>Burst Time</th>
+                    <th>Priority Value</th>
+                </tr>
+            </table>
+        </div>
+
+        <div>
+            <select id="algorithm">
+                <option value="" selected disabled hidden>Select Algorithm</option>
+                <option value="FCFS">First Come First Serve</option>
+                <option value="SJF">Shortest Job First</option>
+                <option value="Priority">Priority Scheduling</option>
+                <option value="SRTF">Shortest Remaining Time First</option>
+            </select>
+            <button id="confirmAlgo">Run Simulation</button>
+        </div>
+
+        <div id="resultsDiv"></div>
+
+        <div id="ganttChartDiv"></div>
+
+        <div id="notificationContainer"></div>
+
+    </div>
+</body>
+
+<script src="index.js"></script>
+
+</html>
