@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Schedule Manager</title>
+</head>
+<body>
+    <button onclick="logTasks()">Log Processes</button> <!-- Pang debug lang -->
+    <div class="container">
+        <h1>Schedule Manager</h1>
+        <button type="button" onclick="addTask()">Add Task</button>
+        <div id="addTaskDiv"></div>
+        <div id="tasksDiv"></div>
+        <div id="scheduleDiv"></div>
+    </div>
+</body>
+
+<script>
+    let tasks = [];
+    let idAcc = 0;
+
+    function logTasks() { // Pang debug lang pwede remove
+        console.log(tasks);
+    }
+
+    const addTaskDiv = document.getElementById("addTaskDiv");
+    const tasksDiv = document.getElementById("tasksDiv");
+
+    function addTask() { // Show form
+        addTaskDiv.innerHTML = `
+            <label for="taskName">Task Name</label>
+            <input type="text" id="taskName" placeholder="Task Name">
+            <label for="startTime">Start Time</label>
+            <input type="time" id="startTime">
+            <label for="durationHours">Duration (hours)</label>
+            <input type="number" min="1" id="durationHours">
+            <label for="durationMinutes">Duration (minutes)</label>
+            <input type="number" min="0" max="59" id="durationMinutes">
+            <label for="priorityValue">Set Priority</label>
+            <input type="number" min="1" max="5" id="priorityValue">
+            <button type="button" onclick="confirmTask()">Confirm</button>
+        `;
+    }
+
+    function confirmTask() {
+        const taskNameInp = document.getElementById("taskName");
+        const startTimeInp = document.getElementById("startTime");
+        const durationHours = document.getElementById("durationHours");
+        const durationMinutes = document.getElementById("durationMinutes");
+        const priorityValueInp = document.getElementById("priorityValue");
+
+        if (taskNameInp.value &&
+            startTimeInp.value &&
+            durationHours.value &&
+            durationMinutes.value &&
+            priorityValueInp.value
+        ) { // Missing values check
+            // Para maging 2 digit lang pag less than 10 (e.g. if 7, magiging 07)
+            const hours = (durationHours.value < 10) ? `0${durationHours.value}` : durationHours.value;
+            const minutes = (durationMinutes.value < 10) ? `0${durationMinutes.value}` : durationMinutes.value;
+
+            idAcc++;
+            tasks.push({ // Push information to tasks[]
+                id: idAcc,
+                taskName: taskNameInp.value,
+                startTime: startTimeInp.value, // Arrival Time
+                duration: `${hours}:${minutes}`, // Burst Time
+                priority: priorityValueInp.value // Priority Value
+            });
+
+            addTaskDiv.innerHTML = ""; // Clear form
+            renderTasks();
+        }
+        else { // Walang input
+            alert("missing inputs"); // Subject to change
+            return false;
+        }
+    }
+
+    renderTasks();
+
+    // Add option to edit tasks
+    function renderTasks() {
+        tasksDiv.innerHTML = "<h2>Tasks</h2>"; // Set header
+        const algorithmSelect = document.createElement("div"); // div for selecting an algorithm
+        algorithmSelect.innerHTML = `
+            <select id="algorithm">
+                <option value="" selected disabled hidden>Select Algorithm</option>
+                <option value="FCFS">First Come First Serve</option>
+                <option value="SJF">Shortest Job First</option>
+                <option value="Priority">Priority Scheduling</option>
+                <option value="SRTF">Shortest Remaining Time First</option>
+            </select>
+            <button type="button" onclick="optimizeSchedule()">Optimize Schedule</button>
+        `;
+
+        if (tasks.length !== 0) {
+            tasks.forEach(task => {
+                const taskDiv = document.createElement("div"); // Create div per task
+                taskDiv.innerHTML = `
+                    <p>
+                        ID: ${task.id}<br>
+                        Name: ${task.taskName}<br>
+                        Start Time: ${task.startTime}<br>
+                        Duration: ${task.duration}<br>
+                        Priority: ${task.priority}
+                    </p>
+                `;
+
+                tasksDiv.appendChild(taskDiv);
+            });
+
+            tasksDiv.appendChild(algorithmSelect);
+        } else {
+            tasksDiv.innerHTML += `<p><i>No tasks yet.</i></p>`;
+        }
+    }
+
+    function optimizeSchedule() {
+        const selectAlgorithmInp = document.getElementById("algorithm");
+        const algorithm = selectAlgorithmInp.value;
+
+        if (algorithm && tasks.length !== 0) {
+            switch (algorithm) {
+                case "FCFS":
+                    optimizeFCFS();
+                    break;
+                case "SJF":
+                    optimizeSJF();
+                    break;
+                case "Priority":
+                    optimizePriority();
+                    break;
+                case "SRTF":
+                    optimizeSRTF();
+                    break;
+                // Not sure if may default pa ito
+            }
+        }
+    }
+
+    function timeToMinutes(timeStr) { // Helper, translates time to a numerical value (minutes)
+        const [hours, minutes] = timeStr.split(':').map(Number); // Pa explain niyo na lang kay AI haha
+        return (hours * 60) + minutes;
+    }
+
+    function minutesToTime(totalMinutes) { // Convers total minutes to a timestamp
+        const hours = Math.floor(totalMinutes / 60) % 24;
+        const minutes = totalMinutes % 60;
+        return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+    }
+
+    function optimizeFCFS() {
+        // Create separate array from tasks
+        let processes = [...tasks];
+        let idleTimes = [];
+
+        processes.sort((a, b) => { // Sort by Arrival Time
+            const timeA = timeToMinutes(a.startTime);
+            const timeB = timeToMinutes(b.startTime);
+
+            if (a.startTime === b.startTime) return a.id - b.id; // If equal time, sort by ID
+            else return timeA - timeB;
+        });
+
+        let currentTime = 0; // Accumulator for TET
+
+        processes.forEach((task, index) => {
+            const taskArrival = timeToMinutes(task.startTime); // AT
+            const durationMin = timeToMinutes(task.duration); // BT
+
+            // Set current time to next task if no task arrived at time 0
+            if (index === 0 || currentTime < taskArrival) currentTime = taskArrival;
+
+            const scheduledStart = minutesToTime(currentTime); // Arrival Time on Gantt Chart
+            const scheduledEnd = minutesToTime(currentTime + durationMin); // Ending Time on Gantt Chart
+
+            // Continue
+        });
+    }
+
+    function optimizeSJF() {
+        // Create separate array from tasks
+        let processes = [...tasks];
+    }
+
+    function optimizePriority() {
+        // Create separate array from tasks
+        let processes = [...tasks];
+    }
+
+    function optimizeSRTF() {
+        // Create separate array from tasks
+        let processes = [...tasks];
+    }
+</script>
+
+</html>
