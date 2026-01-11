@@ -5,127 +5,187 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Schedulator</title>
     <link rel="stylesheet" href="styles.css">
-    <style>
-        #ganttChartDiv {
-            display: flex;
-            flex-wrap: nowrap;
-            overflow-x: auto;
-            padding: 20px 0;
-            margin-top: 20px;
-        }
-
-        .gantt-block {
-            height: 50px;
-            border: 1px solid #333;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            position: relative;
-            color: white;
-            font-weight: bold;
-            min-width: 40px;
-        }
-
-        .process-block { background-color: #3498db; }
-        .idle-block { background-color: #bdc3c7; color: #333; }
-
-        .time-label {
-            position: absolute;
-            bottom: -20px;
-            left: 0;
-            color: black;
-            font-size: 12px;
-        }
-
-        .end-time {
-            left: auto;
-            right: 0;
-        }
-
-        #ganttChartWrapper {
-            display: flex;
-            flex-direction: row;
-            overflow-x: auto;
-            padding-bottom: 30px;
-        }
-
-        #notificationContainer {
-            position: fixed;
-            bottom: 20px;
-            left: 20px;
-            z-index: 1000;
-        }
-
-        .toast {
-            background: #242526;
-            color: white;
-            padding: 12px 20px;
-            border-radius: 8px;
-            margin-top: 10px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-            font-family: sans-serif;
-            animation: slideIn 0.3s ease-out;
-            display: flex;
-            align-items: center;
-            min-width: 250px;
-        }
-
-        .toast.error { border-left: 5px solid #f02849; }
-        .toast.success { border-left: 5px solid #45bd62; }
-
-        @keyframes slideIn {
-            from { transform: translateX(-100%); opacity: 0; }
-            to { transform: translateX(0); opacity: 1; }
-        }
-
-        .toast.fade-out {
-            opacity: 0;
-            transform: translateY(20px);
-            transition: all 0.5s ease;
-        }
-    </style>
 </head>
 <body>
     <div class="container">
         <h1>CPU Scheduling Simulator</h1>
 
-        <div>
-            <label for="numOfProcess">Input Number of Processes</label>
-            <input type="number" min="1" id="numOfProcess">
-            <button id="confirmProcessNum">Confirm</button>
+        <div class="input-section">
+            <div class="input-group">
+                <label for="numOfProcess">Number of Processes</label>
+                <input type="number" min="1" id="numOfProcess" placeholder="Enter number">
+                <button id="confirmProcessNum">Confirm</button>
+            </div>
         </div>
 
-        <div>
-            <table border="0" cellpadding="5" id="inputTable">
-                <tr>
-                    <th>Process ID</th>
-                    <th>Arrival Time</th>
-                    <th>Burst Time</th>
-                    <th>Priority Value</th>
-                </tr>
+        <div class="table-wrapper">
+            <table id="inputTable">
+                <thead>
+                    <tr>
+                        <th>Process ID</th>
+                        <th>Arrival Time</th>
+                        <th>Burst Time</th>
+                        <th>Priority Value</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
             </table>
         </div>
 
-        <div>
-            <select id="algorithm">
-                <option value="" selected disabled hidden>Select Algorithm</option>
-                <option value="FCFS">First Come First Serve</option>
-                <option value="SJF">Shortest Job First</option>
-                <option value="Priority">Priority Scheduling</option>
-                <option value="SRTF">Shortest Remaining Time First</option>
-            </select>
-            <button id="confirmAlgo">Run Simulation</button>
+        <div class="input-section">
+            <div class="input-group">
+                <label for="algorithm">Algorithm</label>
+                <select id="algorithm">
+                    <option value="" selected disabled hidden>Select Algorithm</option>
+                    <option value="FCFS">First Come First Serve</option>
+                    <option value="SJF">Shortest Job First</option>
+                    <option value="Priority">Priority Scheduling</option>
+                    <option value="SRTF">Shortest Remaining Time First</option>
+                    <option value="ALL">All Algorithms (Comparison)</option>
+                </select>
+                <button id="confirmAlgo">Run Simulation</button>
+            </div>
         </div>
 
         <div id="resultsDiv"></div>
 
-        <div id="ganttChartDiv"></div>
+        <div id="metricsSection" class="metrics-section" style="display: none;">
+            <h2>Performance Metrics</h2>
+            <div class="metrics-grid">
+                <div class="metric-card">
+                    <div class="metric-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <polyline points="12 6 12 12 16 14"></polyline>
+                        </svg>
+                    </div>
+                    <div class="metric-content">
+                        <div class="metric-label">Average Turnaround Time</div>
+                        <div class="metric-value" id="avgTAT">0.00</div>
+                        <div class="metric-unit">time units</div>
+                    </div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+                        </svg>
+                    </div>
+                    <div class="metric-content">
+                        <div class="metric-label">Average Waiting Time</div>
+                        <div class="metric-value" id="avgWT">0.00</div>
+                        <div class="metric-unit">time units</div>
+                    </div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="18" y1="20" x2="18" y2="10"></line>
+                            <line x1="12" y1="20" x2="12" y2="4"></line>
+                            <line x1="6" y1="20" x2="6" y2="14"></line>
+                        </svg>
+                    </div>
+                    <div class="metric-content">
+                        <div class="metric-label">CPU Utilization</div>
+                        <div class="metric-value" id="cpuUtil">0%</div>
+                        <div class="metric-unit">efficiency</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="ganttSection" class="gantt-section" style="display: none;">
+            <h2>Gantt Chart</h2>
+            <div class="gantt-container">
+                <div class="gantt-legend">
+                    <div class="legend-item">
+                        <span class="legend-color process-color"></span>
+                        <span class="legend-text">Process Execution</span>
+                    </div>
+                    <div class="legend-item">
+                        <span class="legend-color idle-color"></span>
+                        <span class="legend-text">CPU Idle</span>
+                    </div>
+                </div>
+                <div id="ganttChartDiv" class="gantt-chart"></div>
+                <div class="gantt-timeline" id="ganttTimeline"></div>
+            </div>
+        </div>
+
+        <div id="detailsSection" class="details-section" style="display: none;">
+            <h2>Process Details</h2>
+            <div class="details-table-wrapper">
+                <table id="detailsTable" class="details-table">
+                    <thead>
+                        <tr>
+                            <th>Process</th>
+                            <th>Arrival Time</th>
+                            <th>Burst Time</th>
+                            <th>Ending Time</th>
+                            <th>Turnaround Time</th>
+                            <th>Waiting Time</th>
+                        </tr>
+                    </thead>
+                    <tbody id="detailsTableBody"></tbody>
+                </table>
+            </div>
+        </div>
 
         <div id="notificationContainer"></div>
-
     </div>
+
+    <!-- Templates -->
+    <div id="comparisonTemplate" class="comparison-container" style="display: none;">
+        <h2>Algorithm Comparison</h2>
+        
+        <div class="best-algorithm-summary">
+            <h3>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 24px; height: 24px;">
+                    <circle cx="12" cy="8" r="6"></circle>
+                    <path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"></path>
+                </svg>
+                Best Performance
+            </h3>
+            <div class="best-metrics">
+                <div class="best-metric">
+                    <span class="best-label">Lowest Avg Waiting Time:</span>
+                    <span class="best-value"><span class="best-wt-algo"></span> (<span class="best-wt-value"></span>)</span>
+                </div>
+                <div class="best-metric">
+                    <span class="best-label">Lowest Avg Turnaround Time:</span>
+                    <span class="best-value"><span class="best-tat-algo"></span> (<span class="best-tat-value"></span>)</span>
+                </div>
+                <div class="best-metric">
+                    <span class="best-label">Highest CPU Utilization:</span>
+                    <span class="best-value"><span class="best-cpu-algo"></span> (<span class="best-cpu-value"></span>)</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="algorithm-cards-container"></div>
+    </div>
+
+    <div id="algorithmCardTemplate" class="algorithm-card" style="display: none;">
+        <h3 class="algo-name"></h3>
+        <div class="algo-metrics">
+            <div class="algo-metric">
+                <span class="metric-label">Avg Waiting Time:</span>
+                <span class="metric-value algo-wt"></span>
+            </div>
+            <div class="algo-metric">
+                <span class="metric-label">Avg Turnaround Time:</span>
+                <span class="metric-value algo-tat"></span>
+            </div>
+            <div class="algo-metric">
+                <span class="metric-label">CPU Utilization:</span>
+                <span class="metric-value algo-cpu"></span>
+            </div>
+        </div>
+        <div class="algo-gantt-title">Gantt Chart:</div>
+        <div class="algo-gantt"></div>
+        <div class="algo-timeline"></div>
+    </div>
+
+    <script src="index.js"></script>
 </body>
-
-<script src="index.js"></script>
-
 </html>
