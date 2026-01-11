@@ -8,14 +8,10 @@ confirmNumProcBtn.addEventListener("click", () => {
 });
 
 function addRows(numberOfProcesses) {
-    inputTable.innerHTML = `
-        <tr>
-            <th>Process ID</th>
-            <th>Arrival Time</th>
-            <th>Burst Time</th>
-            <th>Priority Value</th>
-        </tr>
-    `;
+    const inputTable = document.getElementById("inputTable");
+    const tbody = inputTable.querySelector('tbody') || inputTable;
+    
+    tbody.innerHTML = "";
 
     for (let i = 0; i < numberOfProcesses; i++) {
         const tr = document.createElement("tr");
@@ -25,11 +21,9 @@ function addRows(numberOfProcesses) {
             <td><input type="number" placeholder="0" class="processBurstTime"></td>
             <td><input type="number" placeholder="0" class="processPriorityValue"></td>
         `;
-        inputTable.appendChild(tr);
+        tbody.appendChild(tr);
     }
 }
-
-const inputTable = document.getElementById("inputTable");
 
 const algorithmInp = document.getElementById("algorithm");
 const confirmAlgorithmBtn = document.getElementById("confirmAlgo");
@@ -37,31 +31,41 @@ confirmAlgorithmBtn.addEventListener("click", () => {
     const algorithm = algorithmInp.value;
 
     if (algorithm) {
+        const hasArrival = checkArrivalTime();
+        const hasBurst = checkBurstTime();
+        const hasPriority = checkPriorityValues();
+        
+        let missing = [];
+        if (!hasArrival) missing.push("Arrival Time");
+        if (!hasBurst) missing.push("Burst Time");
+        if (!hasPriority) missing.push("Priority Value");
+        
+        if (missing.length > 0) {
+            showNotification(`Missing ${missing.join(", ")} inputs`, "error");
+            return;
+        }
+        
         switch (algorithm) {
             case "FCFS":
-                if (checkArrivalTime() && checkBurstTime()) solveFCFS();
-                else showNotification("Missing Arrival Time and Burst Time inputs", "error");
+                solveFCFS();
                 break;
             case "SJF":
-                if (checkArrivalTime() && checkBurstTime()) solveSJF();
-                else showNotification("Missing Arrival Time and Burst Time inputs", "error");
+                solveSJF();
                 break;
             case "Priority":
-                if (checkArrivalTime() && checkBurstTime() && checkPriorityValues()) solvePriorityValue();
-                else showNotification("Missing Arrival Time, Burst Time, and Priority Value inputs", "error");
+                solvePriorityValue();
                 break;
             case "SRTF":
-                if (checkArrivalTime() && checkBurstTime()) solveSRTF();
-                else showNotification("Missing Arrival Time and Burst Time inputs", "error");
+                solveSRTF();
+                break;
+            case "ALL":
+                solveAllAlgorithms();
                 break;
         }
     } else {
         showNotification("Please select an algorithm", "error");
     }
 });
-
-const resultsDiv = document.getElementById("resultsDiv");
-const ganttChartDiv = document.getElementById("ganttChartDiv");
 
 function checkArrivalTime() {
     const arrivalTimeValues = document.querySelectorAll(".processArrivalTime");
@@ -98,6 +102,7 @@ function getProcessData() {
 
     return Array.from(arrivals).map((input, i) => ({
         id: `P${(i+1)}`,
+        processNumber: i+1,
         at: parseInt(input.value),
         bt: parseInt(bursts[i].value),
         priority: parseInt(priorities[i].value),
@@ -115,8 +120,11 @@ function finalizeCalculation(processes, idleTimes, totalTime) {
     const avgTAT = (totalTAT / processes.length).toFixed(2);
     const cpuUtil = ((totalBT / totalTime) * 100).toFixed(2);
 
-    renderResultsTable(processes, avgWT, avgTAT, cpuUtil);
+    renderMetrics(avgWT, avgTAT, cpuUtil);
     renderGanttChart(processes, idleTimes);
+    renderDetailsTable(processes);
+    
+    showNotification("Simulation completed successfully!", "success");
 }
 
 function finalizeSRTF(processes, ganttData, idleTimes, totalTime) {
@@ -128,8 +136,11 @@ function finalizeSRTF(processes, ganttData, idleTimes, totalTime) {
     const avgTAT = (totalTAT / processes.length).toFixed(2);
     const cpuUtil = ((totalBT / totalTime) * 100).toFixed(2);
 
-    renderResultsTable(processes, avgWT, avgTAT, cpuUtil);
-    renderGanttChart(ganttData, idleTimes);
+    renderMetrics(avgWT, avgTAT, cpuUtil);
+    renderGanttChartSRTF(ganttData, idleTimes);
+    renderDetailsTable(processes);
+    
+    showNotification("Simulation completed successfully!", "success");
 }
 
 function solveFCFS() {
@@ -138,7 +149,7 @@ function solveFCFS() {
 
     processes.sort((a, b) => {
         if (a.at === b.at) {
-            return a.id.localeCompare(b.id);
+            return a.processNumber - b.processNumber;
         }
         return a.at - b.at;
     });
@@ -151,7 +162,7 @@ function solveFCFS() {
                 end: p.at,
                 duration: p.at - currentTime
             });
-            currentTime = p.at
+            currentTime = p.at;
         }
 
         p.startTime = currentTime;
@@ -175,16 +186,15 @@ function solveSJF() {
         readyQueue.sort((a, b) => {
             if (a.bt !== b.bt) return a.bt - b.bt;
             if (a.at !== b.at) return a.at - b.at;
-            return parseInt(a.id.replace("P","")) - parseInt(b.id.replace("P",""));
+            return a.processNumber - b.processNumber;
         });
 
         if (readyQueue.length > 0) {
-            readyQueue.sort((a, b) => a.bt - b.bt);
             let p = readyQueue[0];
             p.startTime = currentTime;
             p.finishTime = p.startTime + p.bt;
             p.tat = p.finishTime - p.at;
-            p.wt = p.tat - p.bt;
+            p.wt = p.startTime - p.at;
             p.isCompleted = true;
             completedCount++;
             currentTime = p.finishTime;
@@ -218,14 +228,14 @@ function solvePriorityValue() {
             readyQueue.sort((a, b) => {
                 if (a.priority !== b.priority) return a.priority - b.priority;
                 if (a.at !== b.at) return a.at - b.at;
-                return parseInt(a.id.replace("P","")) - parseInt(b.id.replace("P",""));
+                return a.processNumber - b.processNumber;
             });
 
             let p = readyQueue[0];
             p.startTime = currentTime;
             p.finishTime = p.startTime + p.bt;
             p.tat = p.finishTime - p.at;
-            p.wt = p.tat - p.bt;
+            p.wt = p.startTime - p.at;
             p.isCompleted = true;
             completedCount++;
             currentTime = p.finishTime;
@@ -253,6 +263,8 @@ function solveSRTF() {
     let currentTime = 0;
     let completedCount = 0;
 
+    processes.forEach(p => p.firstStartTime = null);
+
     while (completedCount < processes.length) {
         let readyQueue = processes.filter(p => p.at <= currentTime && !p.isCompleted);
 
@@ -260,10 +272,14 @@ function solveSRTF() {
             readyQueue.sort((a, b) => {
                 if (a.remainingTime !== b.remainingTime) return a.remainingTime - b.remainingTime;
                 if (a.at !== b.at) return a.at - b.at;
-                return (parseInt(a.id.replace("P","")) - parseInt(b.id.replace("P","")));
+                return a.processNumber - b.processNumber;
             });
 
             let p = readyQueue[0];
+
+            if (p.firstStartTime === null) {
+                p.firstStartTime = currentTime;
+            }
 
             if (ganttData.length > 0 && ganttData[ganttData.length - 1].id === p.id) {
                 ganttData[ganttData.length - 1].end++;
@@ -302,53 +318,367 @@ function solveSRTF() {
     finalizeSRTF(processes, ganttData, idleTimes, currentTime);
 }
 
-function renderResultsTable(processes, avgWT, avgTAT, cpuUtil) {
+function solveAllAlgorithms() {
+    document.getElementById("metricsSection").style.display = "none";
+    document.getElementById("ganttSection").style.display = "none";
+    document.getElementById("detailsSection").style.display = "none";
+    
+    const resultsDiv = document.getElementById("resultsDiv");
     resultsDiv.innerHTML = "";
-    resultsDiv.innerHTML = `<table border="0" cellpadding="5" id="resultsTable"></table>`;
+    
+    const comparisonTemplate = document.getElementById("comparisonTemplate");
+    if (!comparisonTemplate) {
+        showNotification("Template not found. Please refresh the page.", "error");
+        return;
+    }
+    
+    const comparisonContainer = comparisonTemplate.cloneNode(true);
+    comparisonContainer.id = "comparisonContainer";
+    comparisonContainer.style.display = "block";
+    
+    const algorithms = ['FCFS', 'SJF', 'SRTF', 'Priority'];
+    
+    const results = {};
+    
+    algorithms.forEach(algo => {
+        let processes, idleTimes, ganttData, totalTime;
+        
+        switch(algo) {
+            case 'FCFS':
+                ({processes, idleTimes, totalTime} = computeFCFS());
+                break;
+            case 'SJF':
+                ({processes, idleTimes, totalTime} = computeSJF());
+                break;
+            case 'SRTF':
+                ({processes, ganttData, idleTimes, totalTime} = computeSRTF());
+                break;
+            case 'Priority':
+                ({processes, idleTimes, totalTime} = computePriority());
+                break;
+        }
+        
+        const totalWT = processes.reduce((sum, p) => sum + p.wt, 0);
+        const totalTAT = processes.reduce((sum, p) => sum + p.tat, 0);
+        const totalBT = processes.reduce((sum, p) => sum + p.bt, 0);
+        
+        results[algo] = {
+            processes,
+            ganttData,
+            idleTimes,
+            avgWT: (totalWT / processes.length).toFixed(2),
+            avgTAT: (totalTAT / processes.length).toFixed(2),
+            cpuUtil: ((totalBT / totalTime) * 100).toFixed(2),
+            totalTime
+        };
+    });
+    
+    populateBestAlgorithmSummary(comparisonContainer, results, algorithms);
+    
+    algorithms.forEach(algo => {
+        populateAlgorithmCard(comparisonContainer, algo, results[algo]);
+    });
+    
+    resultsDiv.appendChild(comparisonContainer);
+    showNotification("All algorithms simulated successfully!", "success");
+}
 
-    const resultsTable = document.getElementById("resultsTable");
+function populateBestAlgorithmSummary(container, results, algorithms) {
+    let bestWT = { algo: '', value: Infinity };
+    let bestTAT = { algo: '', value: Infinity };
+    let bestCPU = { algo: '', value: 0 };
+    
+    algorithms.forEach(algo => {
+        const wt = parseFloat(results[algo].avgWT);
+        const tat = parseFloat(results[algo].avgTAT);
+        const cpu = parseFloat(results[algo].cpuUtil);
+        
+        if (wt < bestWT.value) bestWT = { algo, value: wt };
+        if (tat < bestTAT.value) bestTAT = { algo, value: tat };
+        if (cpu > bestCPU.value) bestCPU = { algo, value: cpu };
+    });
+    
+    container.querySelector('.best-wt-algo').textContent = bestWT.algo;
+    container.querySelector('.best-wt-value').textContent = bestWT.value;
+    container.querySelector('.best-tat-algo').textContent = bestTAT.algo;
+    container.querySelector('.best-tat-value').textContent = bestTAT.value;
+    container.querySelector('.best-cpu-algo').textContent = bestCPU.algo;
+    container.querySelector('.best-cpu-value').textContent = bestCPU.value + '%';
+}
 
-    resultsTable.innerHTML = "";
-    resultsTable.innerHTML += `
-        <tr>
-            <th>Process</th>
-            <th>Arrival Time</th>
-            <th>Burst Time</th>
-            <th>Ending Time</th>
-            <th>Turnaround Time</th>
-            <th>Waiting Time</th>
-        </tr>
-    `;
+function populateAlgorithmCard(container, algo, result) {
+    const algoNames = {
+        'FCFS': 'First Come First Serve',
+        'SJF': 'Shortest Job First',
+        'SRTF': 'Shortest Remaining Time First',
+        'Priority': 'Priority Scheduling'
+    };
+    
+    const cardTemplate = document.getElementById('algorithmCardTemplate');
+    if (!cardTemplate) {
+        console.error('Algorithm card template not found');
+        return;
+    }
+    
+    const cardClone = cardTemplate.cloneNode(true);
+    cardClone.style.display = 'block';
+    cardClone.removeAttribute('id');
+    
+    cardClone.querySelector('.algo-name').textContent = algoNames[algo];
+    cardClone.querySelector('.algo-wt').textContent = result.avgWT;
+    cardClone.querySelector('.algo-tat').textContent = result.avgTAT;
+    cardClone.querySelector('.algo-cpu').textContent = result.cpuUtil + '%';
+    
+    const ganttDiv = cardClone.querySelector('.algo-gantt');
+    const timelineDiv = cardClone.querySelector('.algo-timeline');
+    ganttDiv.id = `gantt-${algo}`;
+    timelineDiv.id = `timeline-${algo}`;
+    
+    container.querySelector('.algorithm-cards-container').appendChild(cardClone);
+    
+    setTimeout(() => {
+        renderMiniGanttChart(algo, result);
+    }, 0);
+}
 
-    processes.forEach(p => {
-        resultsTable.innerHTML += `
-            <tr>
-                <td>${p.id}</td>
-                <td>${p.at}</td>
-                <td>${p.bt}</td>
-                <td>${p.finishTime}</td>
-                <td>${p.tat}</td>
-                <td>${p.wt}</td>
-            </tr>
-        `;
+function renderMiniGanttChart(algo, result) {
+    const ganttDiv = document.getElementById(`gantt-${algo}`);
+    const timelineDiv = document.getElementById(`timeline-${algo}`);
+    
+    let timeline = [];
+    
+    if (algo === 'SRTF' && result.ganttData) {
+        timeline = [...result.ganttData];
+    } else {
+        result.processes.forEach(s => {
+            timeline.push({
+                id: s.id,
+                start: s.startTime,
+                end: s.finishTime,
+                type: 'process'
+            });
+        });
+    }
+    
+    result.idleTimes.forEach(i => {
+        timeline.push({...i, id: 'Idle', type: 'idle'});
+    });
+    
+    timeline.sort((a, b) => a.start - b.start);
+    
+    timeline.forEach(block => {
+        const duration = block.end - block.start;
+        if (duration <= 0) return;
+        
+        const div = document.createElement("div");
+        div.className = `gantt-block ${block.type === 'process' ? 'process-block' : 'idle-block'}`;
+        div.style.width = `${duration * 30}px`;
+        div.innerHTML = `<div class="gantt-block-label">${block.id}</div>`;
+        div.title = `${block.id}: ${block.start} → ${block.end}`;
+        ganttDiv.appendChild(div);
+    });
+    
+    let currentPosition = 0;
+    timeline.forEach((block, idx) => {
+        const duration = block.end - block.start;
+        if (idx === 0 || block.start !== timeline[idx-1].start) {
+            const marker = document.createElement("div");
+            marker.className = "timeline-marker";
+            marker.textContent = block.start;
+            marker.style.left = `${currentPosition}px`;
+            timelineDiv.appendChild(marker);
+        }
+        currentPosition += duration * 30;
+    });
+    
+    const finalMarker = document.createElement("div");
+    finalMarker.className = "timeline-marker";
+    finalMarker.textContent = timeline[timeline.length - 1].end;
+    finalMarker.style.left = `${currentPosition}px`;
+    timelineDiv.appendChild(finalMarker);
+}
+
+function computeFCFS() {
+    let processes = getProcessData();
+    let idleTimes = [];
+
+    processes.sort((a, b) => {
+        if (a.at === b.at) return a.processNumber - b.processNumber;
+        return a.at - b.at;
     });
 
-    const resultDetails = document.createElement("p");
-    resultDetails.innerHTML = `
-        Average Waiting Time: ${avgWT}<br>
-        Average Turnaround Time: ${avgTAT}<br>
-        CPU Utilization: ${cpuUtil}
-    `;
+    let currentTime = 0;
+    processes.forEach(p => {
+        if (currentTime < p.at) {
+            idleTimes.push({ start: currentTime, end: p.at, duration: p.at - currentTime });
+            currentTime = p.at;
+        }
+        p.startTime = currentTime;
+        p.finishTime = currentTime + p.bt;
+        p.tat = p.finishTime - p.at;
+        p.wt = p.tat - p.bt;
+        currentTime = p.finishTime;
+    });
 
-    resultsDiv.appendChild(resultDetails);
+    return { processes, idleTimes, totalTime: currentTime };
+}
+
+function computeSJF() {
+    let processes = getProcessData();
+    let idleTimes = [];
+    let currentTime = 0;
+    let completedCount = 0;
+
+    while (completedCount < processes.length) {
+        let readyQueue = processes.filter(p => p.at <= currentTime && !p.isCompleted);
+        readyQueue.sort((a, b) => {
+            if (a.bt !== b.bt) return a.bt - b.bt;
+            if (a.at !== b.at) return a.at - b.at;
+            return a.processNumber - b.processNumber;
+        });
+
+        if (readyQueue.length > 0) {
+            let p = readyQueue[0];
+            p.startTime = currentTime;
+            p.finishTime = p.startTime + p.bt;
+            p.tat = p.finishTime - p.at;
+            p.wt = p.startTime - p.at;
+            p.isCompleted = true;
+            completedCount++;
+            currentTime = p.finishTime;
+        } else {
+            let uncompleted = processes.filter(p => !p.isCompleted);
+            let nextArrival = Math.min(...uncompleted.map(p => p.at));
+            idleTimes.push({ start: currentTime, end: nextArrival, duration: nextArrival - currentTime });
+            currentTime = nextArrival;
+        }
+    }
+
+    return { processes, idleTimes, totalTime: currentTime };
+}
+
+function computePriority() {
+    let processes = getProcessData();
+    let idleTimes = [];
+    let currentTime = 0;
+    let completedCount = 0;
+
+    while (completedCount < processes.length) {
+        let readyQueue = processes.filter(p => p.at <= currentTime && !p.isCompleted);
+
+        if (readyQueue.length > 0) {
+            readyQueue.sort((a, b) => {
+                if (a.priority !== b.priority) return a.priority - b.priority;
+                if (a.at !== b.at) return a.at - b.at;
+                return a.processNumber - b.processNumber;
+            });
+
+            let p = readyQueue[0];
+            p.startTime = currentTime;
+            p.finishTime = p.startTime + p.bt;
+            p.tat = p.finishTime - p.at;
+            p.wt = p.startTime - p.at;
+            p.isCompleted = true;
+            completedCount++;
+            currentTime = p.finishTime;
+        } else {
+            let uncompleted = processes.filter(p => !p.isCompleted);
+            let nextArrival = Math.min(...uncompleted.map(p => p.at));
+            idleTimes.push({ start: currentTime, end: nextArrival, duration: nextArrival - currentTime });
+            currentTime = nextArrival;
+        }
+    }
+
+    return { processes, idleTimes, totalTime: currentTime };
+}
+
+function computeSRTF() {
+    let processes = getProcessData();
+    let idleTimes = [];
+    let ganttData = [];
+    let currentTime = 0;
+    let completedCount = 0;
+
+    processes.forEach(p => p.firstStartTime = null);
+
+    while (completedCount < processes.length) {
+        let readyQueue = processes.filter(p => p.at <= currentTime && !p.isCompleted);
+
+        if (readyQueue.length > 0) {
+            readyQueue.sort((a, b) => {
+                if (a.remainingTime !== b.remainingTime) return a.remainingTime - b.remainingTime;
+                if (a.at !== b.at) return a.at - b.at;
+                return a.processNumber - b.processNumber;
+            });
+
+            let p = readyQueue[0];
+
+            if (p.firstStartTime === null) {
+                p.firstStartTime = currentTime;
+            }
+
+            if (ganttData.length > 0 && ganttData[ganttData.length - 1].id === p.id) {
+                ganttData[ganttData.length - 1].end++;
+            } else {
+                ganttData.push({ id: p.id, start: currentTime, end: currentTime + 1, type: 'process' });
+            }
+
+            p.remainingTime--;
+            currentTime++;
+
+            if (p.remainingTime === 0) {
+                p.isCompleted = true;
+                p.finishTime = currentTime;
+                p.tat = p.finishTime - p.at;
+                p.wt = p.tat - p.bt;
+                completedCount++;
+            }
+        } else {
+            let uncompleted = processes.filter(p => !p.isCompleted);
+            let nextArrival = Math.min(...uncompleted.map(p => p.at));
+            idleTimes.push({ start: currentTime, end: nextArrival, duration: nextArrival - currentTime });
+            currentTime = nextArrival;
+        }
+    }
+    
+    return { processes, ganttData, idleTimes, totalTime: currentTime };
+}
+
+function renderMetrics(avgWT, avgTAT, cpuUtil) {
+    const metricsSection = document.getElementById("metricsSection");
+    metricsSection.style.display = "block";
+    
+    document.getElementById("avgWT").textContent = avgWT;
+    document.getElementById("avgTAT").textContent = avgTAT;
+    document.getElementById("cpuUtil").textContent = cpuUtil + "%";
+    
+    animateValue("avgWT", 0, parseFloat(avgWT), 1000);
+    animateValue("avgTAT", 0, parseFloat(avgTAT), 1000);
+    animateValue("cpuUtil", 0, parseFloat(cpuUtil), 1000, "%");
+}
+
+function animateValue(id, start, end, duration, suffix = "") {
+    const element = document.getElementById(id);
+    const range = end - start;
+    const increment = range / (duration / 16);
+    let current = start;
+    
+    const timer = setInterval(() => {
+        current += increment;
+        if ((increment > 0 && current >= end) || (increment < 0 && current <= end)) {
+            current = end;
+            clearInterval(timer);
+        }
+        element.textContent = current.toFixed(2) + suffix;
+    }, 16);
 }
 
 function renderGanttChart(segments, idleTimes) {
-    ganttChartDiv.innerHTML = "<h3>Gantt Chart</h3>";
-    const chartWrapper = document.createElement("div");
-    chartWrapper.id = "ganttChartWrapper";
-    chartWrapper.style.display = "flex";
-    chartWrapper.style.paddingBottom = "25px";
+    const ganttSection = document.getElementById("ganttSection");
+    const ganttChartDiv = document.getElementById("ganttChartDiv");
+    
+    ganttSection.style.display = "block";
+    ganttChartDiv.innerHTML = "";
 
     let timeline = [];
 
@@ -372,33 +702,114 @@ function renderGanttChart(segments, idleTimes) {
 
     timeline.sort((a, b) => a.start - b.start);
 
-    timeline.forEach((block, index) => {
+    timeline.forEach(block => {
         const duration = block.end - block.start;
         if (duration <= 0) return;
 
         const div = document.createElement("div");
         div.className = `gantt-block ${block.type === 'process' ? 'process-block' : 'idle-block'}`;
-        div.style.width = `${duration * 40}px`;
-        div.style.flexShrink = "0";
+        div.style.width = `${duration * 50}px`;
 
         div.innerHTML = `
-            <span>${block.id}</span>
-            <span class="time-label">${block.start}</span>
+            <div class="gantt-block-label">${block.id}</div>
+            <div class="gantt-block-time">${duration}u</div>
         `;
 
-        if (index === timeline.length - 1) {
-            const lastTime = document.createElement("span");
-            lastTime.className = "time-label end-time";
-            lastTime.style.right = "0";
-            lastTime.style.left = "auto";
-            lastTime.innerText = block.end;
-            div.appendChild(lastTime);
-        }
+        div.title = `${block.id}: ${block.start} → ${block.end} (${duration} units)`;
 
-        chartWrapper.appendChild(div);
+        ganttChartDiv.appendChild(div);
     });
 
-    ganttChartDiv.appendChild(chartWrapper);
+    renderTimeline(timeline);
+}
+
+function renderGanttChartSRTF(ganttData, idleTimes) {
+    const ganttSection = document.getElementById("ganttSection");
+    const ganttChartDiv = document.getElementById("ganttChartDiv");
+    
+    ganttSection.style.display = "block";
+    ganttChartDiv.innerHTML = "";
+
+    let timeline = [...ganttData];
+    
+    idleTimes.forEach(i => {
+        timeline.push({...i, id: 'Idle', type: 'idle'});
+    });
+
+    timeline.sort((a, b) => a.start - b.start);
+
+    timeline.forEach(block => {
+        const duration = block.end - block.start;
+        if (duration <= 0) return;
+
+        const div = document.createElement("div");
+        div.className = `gantt-block ${block.type === 'process' ? 'process-block' : 'idle-block'}`;
+        div.style.width = `${duration * 50}px`;
+
+        div.innerHTML = `
+            <div class="gantt-block-label">${block.id}</div>
+            <div class="gantt-block-time">${duration}u</div>
+        `;
+
+        div.title = `${block.id}: ${block.start} → ${block.end} (${duration} units)`;
+
+        ganttChartDiv.appendChild(div);
+    });
+
+    renderTimeline(timeline);
+}
+
+function renderTimeline(timeline) {
+    const ganttTimeline = document.getElementById("ganttTimeline");
+    ganttTimeline.innerHTML = "";
+    
+    let timePoints = new Set();
+    timeline.forEach(block => {
+        timePoints.add(block.start);
+        timePoints.add(block.end);
+    });
+    
+    let sortedTimes = Array.from(timePoints).sort((a, b) => a - b);
+    let currentPosition = 0;
+    
+    timeline.forEach(block => {
+        const duration = block.end - block.start;
+        const marker = document.createElement("div");
+        marker.className = "timeline-marker";
+        marker.textContent = block.start;
+        marker.style.left = `${currentPosition}px`;
+        ganttTimeline.appendChild(marker);
+        currentPosition += duration * 50;
+    });
+    
+    const finalMarker = document.createElement("div");
+    finalMarker.className = "timeline-marker";
+    finalMarker.textContent = timeline[timeline.length - 1].end;
+    finalMarker.style.left = `${currentPosition}px`;
+    ganttTimeline.appendChild(finalMarker);
+}
+
+function renderDetailsTable(processes) {
+    const detailsSection = document.getElementById("detailsSection");
+    const detailsTableBody = document.getElementById("detailsTableBody");
+    
+    detailsSection.style.display = "block";
+    detailsTableBody.innerHTML = "";
+    
+    processes.sort((a, b) => a.processNumber - b.processNumber);
+    
+    processes.forEach(p => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+            <td><strong>${p.id}</strong></td>
+            <td>${p.at}</td>
+            <td>${p.bt}</td>
+            <td>${p.finishTime}</td>
+            <td>${p.tat}</td>
+            <td>${p.wt}</td>
+        `;
+        detailsTableBody.appendChild(tr);
+    });
 }
 
 function showNotification(message, type = 'success') {
@@ -406,7 +817,15 @@ function showNotification(message, type = 'success') {
     const toast = document.createElement("div");
 
     toast.className = `toast ${type}`;
-    toast.innerHTML = `<span>${message}</span>`;
+    
+    const iconSvg = type === 'success' 
+        ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>'
+        : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>';
+    
+    toast.innerHTML = `
+        <span class="toast-icon">${iconSvg}</span>
+        <span>${message}</span>
+    `;
 
     container.appendChild(toast);
 
