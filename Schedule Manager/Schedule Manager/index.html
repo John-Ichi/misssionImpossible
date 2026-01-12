@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Schedule Manager</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Schedule Manager</h1>
+            <div style="display: flex; gap: 0.75rem;">
+                <button type="button" class="btn-secondary" onclick="logTasks()">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                        <path d="M2 5H14M2 8H14M2 11H14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                    </svg>
+                    Log Processes
+                </button>
+                <button type="button" class="btn-primary" onclick="addTask()">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                        <path d="M8 3V13M3 8H13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    </svg>
+                    Add Task
+                </button>
+            </div>
+        </header>
+
+        <div id="addTaskDiv"></div>
+        <div id="tasksDiv"></div>
+        <div id="scheduleDiv"></div>
+    </div>
+
+    <template id="addTaskFormTemplate">
+        <div class="form-grid">
+            <div class="form-group">
+                <label for="taskName">Task Name</label>
+                <input type="text" id="taskName" placeholder="Enter task name" onblur="validateField(this)" oninput="clearError(this)">
+            </div>
+            <div class="form-group">
+                <label for="startTime">Start Time</label>
+                <input type="time" id="startTime" onblur="validateField(this)" oninput="clearError(this)">
+            </div>
+            <div class="form-group">
+                <label for="durationHours">Duration (hours)</label>
+                <input type="number" min="0" id="durationHours" placeholder="0" onblur="validateDuration()" oninput="clearError(this)">
+            </div>
+            <div class="form-group">
+                <label for="durationMinutes">Duration (minutes)</label>
+                <input type="number" min="0" max="59" id="durationMinutes" placeholder="0" onblur="validateDuration()" oninput="clearError(this)">
+            </div>
+            <div class="form-group">
+                <label for="priorityValue">Priority (1-5)</label>
+                <input type="number" min="1" max="5" id="priorityValue" placeholder="1-5" onblur="validateField(this)" oninput="clearError(this)">
+            </div>
+        </div>
+        <div class="form-actions">
+            <button type="button" class="btn-secondary" onclick="cancelTask()">Cancel</button>
+            <button type="button" class="btn-primary" onclick="confirmTask()">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                    <path d="M13 4L6 11L3 8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <span id="submitButtonText">Add Task</span>
+            </button>
+        </div>
+    </template>
+
+    <template id="taskCardTemplate">
+        <div class="task-card">
+            <div class="task-header">
+                <div class="task-title" data-field="taskName"></div>
+                <div class="task-actions">
+                    <button class="btn-icon" data-action="edit" title="Edit">
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor">
+                            <path d="M11.5 2.5L13.5 4.5L5.5 12.5H3.5V10.5L11.5 2.5Z" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </button>
+                    <button class="btn-icon" data-action="delete" title="Delete">
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor">
+                            <path d="M2 4H14M12.5 4V13C12.5 13.5 12 14 11.5 14H4.5C4 14 3.5 13.5 3.5 13V4M5.5 4V2.5C5.5 2 6 1.5 6.5 1.5H9.5C10 1.5 10.5 2 10.5 2.5V4" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            <div class="task-details">
+                <div class="task-detail">
+                    <span class="task-detail-label">ID</span>
+                    <span data-field="id"></span>
+                </div>
+                <div class="task-detail">
+                    <span class="task-detail-label">Start Time</span>
+                    <span data-field="startTime"></span>
+                </div>
+                <div class="task-detail">
+                    <span class="task-detail-label">Duration</span>
+                    <span data-field="duration"></span>
+                </div>
+                <div class="task-detail">
+                    <span class="task-detail-label">Priority</span>
+                    <span data-field="priority"></span>
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <template id="emptyStateTemplate">
+        <div class="empty-state">
+            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2" stroke-width="2"/>
+                <line x1="16" y1="2" x2="16" y2="6" stroke-width="2"/>
+                <line x1="8" y1="2" x2="8" y2="6" stroke-width="2"/>
+                <line x1="3" y1="10" x2="21" y2="10" stroke-width="2"/>
+            </svg>
+            <p>No tasks yet. Add a task to get started.</p>
+        </div>
+    </template>
+
+    <template id="algorithmSectionTemplate">
+        <div class="algorithm-section">
+            <select id="algorithm">
+                <option value="" selected disabled hidden>Select Scheduling Algorithm</option>
+                <option value="FCFS">First Come First Serve (FCFS)</option>
+                <option value="SJF">Shortest Job First (SJF)</option>
+                <option value="Priority">Priority Scheduling</option>
+                <option value="SRTF">Shortest Remaining Time First (SRTF)</option>
+                <option value="ALL">All Algorithms</option>
+            </select>
+            <button type="button" class="btn-primary" onclick="optimizeSchedule()">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                    <path d="M13 8C13 10.761 10.761 13 8 13C5.239 13 3 10.761 3 8C3 5.239 5.239 3 8 3C9.544 3 10.912 3.742 11.781 4.906" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                    <path d="M10 3H13V6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                Optimize Schedule
+            </button>
+        </div>
+    </template>
+
+    <div id="modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modalTitle">Alert</h3>
+            </div>
+            <div class="modal-body">
+                <p id="modalMessage"></p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-primary" onclick="closeModal()">OK</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
