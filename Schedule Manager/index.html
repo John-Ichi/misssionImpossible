@@ -26,6 +26,7 @@
 
     const addTaskDiv = document.getElementById("addTaskDiv");
     const tasksDiv = document.getElementById("tasksDiv");
+    const scheduleDiv = document.getElementById("scheduleDiv");
 
     function addTask() { // Show form
         addTaskDiv.innerHTML = `
@@ -141,7 +142,12 @@
     }
 
     function timeToMinutes(timeStr) { // Helper, translates time to a numerical value (minutes)
-        const [hours, minutes] = timeStr.split(':').map(Number); // Pa explain niyo na lang kay AI haha
+        const [hours, minutes] = timeStr.split(":").map(Number); // Pa explain niyo na lang kay AI haha
+        return (hours * 60) + minutes;
+    }
+
+    function durationToMinutes(durationStr) {
+        const [hours, minutes] = durationStr.split(":").map(Number);
         return (hours * 60) + minutes;
     }
 
@@ -152,48 +158,322 @@
     }
 
     function optimizeFCFS() {
-        // Create separate array from tasks
-        let processes = [...tasks];
-        let idleTimes = [];
+        scheduleDiv.innerHTML = "<h2>FCFS Schedule</h2>";
+
+        let processes = [...tasks]; // Create separate array from tasks
+        let schedule = [];
+        let currentTime = 0 // Accumulator for TET
+        let totalBurst = 0;
+        let idleTime = 0;
 
         processes.sort((a, b) => { // Sort by Arrival Time
             const timeA = timeToMinutes(a.startTime);
             const timeB = timeToMinutes(b.startTime);
 
-            if (a.startTime === b.startTime) return a.id - b.id; // If equal time, sort by ID
+            if (timeA === timeB) return a.id - b.id; // If equal time, sort by ID
             else return timeA - timeB;
         });
 
-        let currentTime = 0; // Accumulator for TET
+        processes.forEach(task => {
+            const arrival = timeToMinutes(task.startTime);
+            const burst = durationToMinutes(task.duration);
+            totalBurst += burst;
 
-        processes.forEach((task, index) => {
-            const taskArrival = timeToMinutes(task.startTime); // AT
-            const durationMin = timeToMinutes(task.duration); // BT
+            if (currentTime < arrival) {
+                schedule.push({
+                    label: "Idle",
+                    start: currentTime,
+                    end: arrival
+                });
+                idleTime += arrival - currentTime;
+                currentTime = arrival;
+            }
 
-            // Set current time to next task if no task arrived at time 0
-            if (index === 0 || currentTime < taskArrival) currentTime = taskArrival;
+            task.actualStart = currentTime;
+            task.finishTime = currentTime + burst;
+            task.turnaroundTime = task.finishTime - arrival;
+            task.waitingTime = task.turnaroundTime - burst;
 
-            const scheduledStart = minutesToTime(currentTime); // Arrival Time on Gantt Chart
-            const scheduledEnd = minutesToTime(currentTime + durationMin); // Ending Time on Gantt Chart
+            schedule.push({
+                label: task.taskName,
+                start: task.actualStart,
+                end: task.finishTime
+            });
 
-            // Continue
+            currentTime = task.finishTime;
         });
+
+        const cpuUtilization = ((totalBurst / (currentTime - idleTime)) * 100).toFixed(2);
+
+        renderSchedule(schedule);
+        renderDetails(processes);
+        renderMetrics(processes, cpuUtilization);
     }
 
     function optimizeSJF() {
-        // Create separate array from tasks
-        let processes = [...tasks];
+        scheduleDiv.innerHTML = "<h2>SJF Schedule</h2>";
+
+        let processes = [...tasks]; // Create separate array from tasks
+        let schedule = [];
+        let currentTime = 0 // Accumulator for TET
+        let totalBurst = 0;
+        let idleTime = 0;
+
+        processes.forEach(p => p.burst = durationToMinutes(p.duration));
+
+        let completed = [];
+
+        while (completed.length < processes.length) {
+            const available = processes.filter(p => !completed.includes(p) && timeToMinutes(p.startTime) <= currentTime);
+
+            if (available.length === 0) {
+                const nextArrival = Math.min(...processes.filter(p => !completed.includes(p)).map(p => timeToMinutes(p.startTime)));
+                schedule.push({
+                    label: "Idle",
+                    start: currentTime,
+                    end: nextArrival
+                });
+                idleTime += nextArrival - currentTime;
+                currentTime = nextArrival;
+                continue;
+            }
+
+            available.sort((a, b) => {
+                const timeA = timeToMinutes(a.startTime);
+                const timeB = timeToMinutes(b.startTime);
+
+                if (a.burst !== b.burst) return a.burst - b.burst;
+                if (timeA !== timeB) return timeA - timeB;
+                return a.id - b.id;
+            });
+
+            const task = available[0];
+
+            const arrival = timeToMinutes(task.startTime);
+            task.actualStart = currentTime;
+            task.finishTime = currentTime + task.burst;
+            task.turnaroundTime = task.finishTime - arrival;
+            task.waitingTime = task.turnaroundTime - task.burst;
+
+            schedule.push({
+                label: task.taskName,
+                start: task.actualStart,
+                end: task.finishTime
+            });
+
+            totalBurst += task.burst;
+            currentTime = task.finishTime;
+            completed.push(task);
+        }
+
+        const cpuUtilization = ((totalBurst / (currentTime - idleTime)) * 100).toFixed(2);
+
+        renderSchedule(schedule);
+        renderDetails(processes);
+        renderMetrics(processes, cpuUtilization);
     }
 
     function optimizePriority() {
-        // Create separate array from tasks
-        let processes = [...tasks];
+        scheduleDiv.innerHTML = "<h2>Priority Schedule</h2>";
+
+        let processes = [...tasks]; // Create separate array from tasks
+        let schedule = [];
+        let currentTime = 0 // Accumulator for TET
+        let totalBurst = 0;
+        let idleTime = 0;
+
+        processes.forEach(p => p.burst = durationToMinutes(p.duration));
+
+        let completed = [];
+
+        while (completed.length < processes.length) {
+            const available = processes.filter(p => !completed.includes(p) && timeToMinutes(p.startTime) <= currentTime);
+            
+            if (available.length === 0) {
+                const nextArrival = Math.min(...processes.filter(p => !completed.includes(p)).map(p => timeToMinutes(p.startTime)));
+                schedule.push({
+                    label: "Idle",
+                    start: currentTime,
+                    end: nextArrival
+                });
+                idleTime += nextArrival - currentTime;
+                currentTime = nextArrival;
+                continue;
+            }
+
+            available.sort((a, b) => {
+                const timeA = timeToMinutes(a.startTime);
+                const timeB = timeToMinutes(b.startTime);
+
+                if (a.priority !== b.priority) return a.priority - b.priority;
+                if (a.burst !== b.burst) return a.burst - b.burst;
+                if (timeA !== timeB) return timeA - timeB;
+                return a.id - b.id;
+            });
+
+            const task = available[0];
+
+            const arrival = timeToMinutes(task.startTime);
+            task.actualStart = currentTime;
+            task.finishTime = currentTime + task.burst;
+            task.turnaroundTime = task.finishTime - arrival;
+            task.waitingTime = task.turnaroundTime - task.burst;
+
+            schedule.push({
+                label: task.taskName,
+                start: task.actualStart,
+                end: task.finishTime
+            });
+
+            totalBurst += task.burst;
+            currentTime = task.finishTime;
+            completed.push(task);
+        }
+
+        const cpuUtilization = ((totalBurst / (currentTime - idleTime)) * 100).toFixed(2);
+
+        renderSchedule(schedule);
+        renderDetails(processes);
+        renderMetrics(processes, cpuUtilization);
     }
 
     function optimizeSRTF() {
-        // Create separate array from tasks
-        let processes = [...tasks];
+        scheduleDiv.innerHTML = "<h2>SRTF Schedule</h2>";
+
+        let processes = [...tasks]; // Create separate array from tasks
+        let schedule = [];
+        let currentTime = 0 // Accumulator for TET
+        let totalBurst = 0;
+        let idleTime = 0;
+
+        processes.forEach(p => p.remaining = durationToMinutes(p.duration));
+
+        let completed = [];
+        let lastTask = null;
+
+        while (completed.length < processes.length) {
+            const available = processes.filter(p => !completed.includes(p) && timeToMinutes(p.startTime) <= currentTime);
+
+            if (available.length === 0) {
+                const nextArrival = Math.min(...processes.filter(p => !completed.includes(p)).map(p => timeToMinutes(p.startTime)));
+                if (lastTask && schedule.length && schedule[schedule.length-1].label === "Idle") {
+                    schedule[schedule.length-1].end = nextArrival;
+                } else {
+                    schedule.push({
+                        label: "Idle",
+                        start: currentTime,
+                        end: nextArrival
+                    });
+                }
+                idleTime += nextArrival - currentTime;
+                currentTime = nextArrival;
+                lastTask = null;
+                continue;
+            }
+
+            available.sort((a, b) => {
+                const timeA = timeToMinutes(a.startTime);
+                const timeB = timeToMinutes(b.startTime);
+
+                if (a.remaining !== b.remaining) return a.remaining - b.remaining;
+                if (timeA !== timeB) return timeA - timeB;
+                return a.id - b.id;
+            });
+
+            const task = available[0];
+
+            if (!task.actualStart) task.actualStart = currentTime;
+            const nextArrivalTimes = processes
+                .filter(p => !completed.includes(p) && p !== task && timeToMinutes(p.startTime) > currentTime)
+                .map(p => timeToMinutes(p.startTime));
+            const nextArrival = nextArrivalTimes.length ? Math.min(...nextArrivalTimes) : Infinity;
+
+            const timeSlice = Math.min(task.remaining, nextArrival - currentTime);
+
+            if (lastTask === task && schedule.length) {
+                schedule[schedule.length-1].end += timeSlice;
+            } else {
+                schedule.push({
+                    label: task.taskName,
+                    start: currentTime,
+                    end: currentTime + timeSlice
+                });
+            }
+
+            task.remaining -= timeSlice;
+            currentTime += timeSlice;
+            lastTask = task;
+
+            if (task.remaining === 0) {
+                const arrival = timeToMinutes(task.startTime);
+                task.finishTime = currentTime;
+                task.turnaroundTime = task.finishTime - arrival;
+                task.waitingTime = task.turnaroundTime - durationToMinutes(task.duration);
+                totalBurst += durationToMinutes(task.duration);
+                completed.push(task);
+                lastTask = null;
+            }
+        }
+
+        const cpuUtilization = ((totalBurst / (currentTime - idleTime)) * 100).toFixed(2);
+
+        renderSchedule(schedule);
+        renderDetails(processes);
+        renderMetrics(processes, cpuUtilization);
     }
+
+    function renderSchedule(schedule) {
+        schedule.forEach(block => {
+            const div = document.createElement("div");
+            div.innerHTML = `
+                <strong>${block.label}</strong><br>
+                ${minutesToTime(block.start)} -> ${minutesToTime(block.end)}
+                (${block.end - block.start} minutes)
+            `;
+            scheduleDiv.appendChild(div);
+        });
+    }
+
+    function renderDetails(processes) {
+        scheduleDiv.innerHTML += `
+            <h3>Process Details</h3>
+            <table border="1" cellpadding="5">
+                <tr>
+                    <th>Task</th>
+                    <th>Arrival</th>
+                    <th>Burst</th>
+                    <th>Start</th>
+                    <th>Finish</th>
+                    <th>TAT</th>
+                    <th>WT</th>
+                </tr>
+                ${processes.map(p => `
+                    <tr>
+                        <td>${p.taskName}</td>
+                        <td>${p.startTime}</td>
+                        <td>${p.duration}</td>
+                        <td>${minutesToTime(p.actualStart)}</td>
+                        <td>${minutesToTime(p.finishTime)}</td>
+                        <td>${minutesToTime(p.turnaroundTime)}</td>
+                        <td>${minutesToTime(p.waitingTime)}</td>
+                    </tr>
+                `).join("")}
+            </table>
+        `;
+    }
+
+    function renderMetrics(processes, cpuUtilization) {
+        const avgTAT = (processes.reduce((s, p) => s + p.turnaroundTime, 0) / processes.length);
+        const avgWT = (processes.reduce((s, p) => s + p.waitingTime, 0) / processes.length);
+
+        scheduleDiv.innerHTML += `
+            <h3>Metrics</h3>
+            <p>Average Turnaround Time: ${avgTAT} minutes</p>
+            <p>Average Waiting Time: ${avgWT} minutes</p>
+            <p>Task Engagement: ${cpuUtilization}%</p>
+        `;
+    }
+
 </script>
 
 </html>
