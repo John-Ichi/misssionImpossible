@@ -147,29 +147,30 @@ function solveFCFS() {
     let processes = getProcessData();
     let idleTimes = [];
 
+    // Sort by Arrival Time
     processes.sort((a, b) => {
-        if (a.at === b.at) {
-            return a.processNumber - b.processNumber;
+        if (a.at === b.at) { // Equal AT
+            return a.processNumber - b.processNumber; // Sort first to last ID
         }
-        return a.at - b.at;
+        return a.at - b.at; // Lowest to highest AT
     });
 
-    let currentTime = 0;
+    let currentTime = 0; // ET accumulator, for TET
     processes.forEach(p => {
-        if (currentTime < p.at) {
-            idleTimes.push({
-                start: currentTime,
-                end: p.at,
-                duration: p.at - currentTime
+        if (currentTime < p.at) { // Check for IT
+            idleTimes.push({ // Push to idleTime[]
+                start: currentTime, // Starting from currentTime
+                end: p.at, // Until next process arrival
+                duration: p.at - currentTime // Calculate burst (duration)
             });
-            currentTime = p.at;
+            currentTime = p.at; // Set next arrived task as current
         }
 
-        p.startTime = currentTime;
-        p.finishTime = currentTime + p.bt;
-        p.tat = p.finishTime - p.at;
-        p.wt = p.tat - p.bt;
-        currentTime = p.finishTime;
+        p.startTime = currentTime; // Set process start/arrival time
+        p.finishTime = currentTime + p.bt; // Set ET (AT + BT)
+        p.tat = p.finishTime - p.at; // Set TAT (ET - AT)
+        p.wt = p.tat - p.bt; // (TAT - BT)
+        currentTime = p.finishTime; // Set TET accumulator
     });
 
     finalizeCalculation(processes, idleTimes, currentTime);
@@ -181,28 +182,28 @@ function solveSJF() {
     let currentTime = 0;
     let completedCount = 0;
 
-    while (completedCount < processes.length) {
-        let readyQueue = processes.filter(p => p.at <= currentTime && !p.isCompleted);
+    while (completedCount < processes.length) { // Compare completed tasks with processes left
+        let readyQueue = processes.filter(p => p.at <= currentTime && !p.isCompleted); // Add processes to ready queue if not yet completed and has not arrived yet/exceeded latest TET
         readyQueue.sort((a, b) => {
-            if (a.bt !== b.bt) return a.bt - b.bt;
-            if (a.at !== b.at) return a.at - b.at;
-            return a.processNumber - b.processNumber;
+            if (a.bt !== b.bt) return a.bt - b.bt; // Sort by BT (shortest to longest)
+            if (a.at !== b.at) return a.at - b.at; // If equal BT, sort by AT (fist to last)
+            return a.processNumber - b.processNumber; // If equal BT and AT, sort by ID (first to last)
         });
 
-        if (readyQueue.length > 0) {
+        if (readyQueue.length > 0) { // Ready queue is populated
             let p = readyQueue[0];
-            p.startTime = currentTime;
-            p.finishTime = p.startTime + p.bt;
-            p.tat = p.finishTime - p.at;
-            p.wt = p.startTime - p.at;
-            p.isCompleted = true;
+            p.startTime = currentTime; // Set process start/arrival time
+            p.finishTime = p.startTime + p.bt; // Set ET (AT + BT)
+            p.tat = p.finishTime - p.at; // Set TAT (ET - AT)
+            p.wt = p.tat - p.bt; // Set WT (TAT - BT)
+            p.isCompleted = true; // Set completed = true
             completedCount++;
             currentTime = p.finishTime;
         } else {
-            let uncompleted = processes.filter(p => !p.isCompleted);
-            let nextArrival = Math.min(...uncompleted.map(p => p.at));
+            let uncompleted = processes.filter(p => !p.isCompleted); // Check for uncompleted processes
+            let nextArrival = Math.min(...uncompleted.map(p => p.at)); // Get next process
 
-            idleTimes.push({
+            idleTimes.push({ // Push to idleTime[]
                 start: currentTime,
                 end: nextArrival,
                 duration: nextArrival - currentTime
@@ -221,29 +222,30 @@ function solvePriorityValue() {
     let currentTime = 0;
     let completedCount = 0;
 
-    while (completedCount < processes.length) {
-        let readyQueue = processes.filter(p => p.at <= currentTime && !p.isCompleted);
+    while (completedCount < processes.length) { // Compare completed tasks with processes left
+        let readyQueue = processes.filter(p => p.at <= currentTime && !p.isCompleted); // Add processes to ready queue if not yet completed and has not arrived yet/exceeded latest TET
 
         if (readyQueue.length > 0) {
             readyQueue.sort((a, b) => {
-                if (a.priority !== b.priority) return a.priority - b.priority;
-                if (a.at !== b.at) return a.at - b.at;
-                return a.processNumber - b.processNumber;
+                if (a.priority !== b.priority) return a.priority - b.priority; // Sort by priority (highest is 1)
+                if (a.bt !== b.bt) return a.bt - b.bt; // If equal priority, sort by BT (shortest to longest) 
+                if (a.at !== b.at) return a.at - b.at; // If equal BT, sort by AT (first to last)
+                return a.processNumber - b.processNumber; // If equal AT, sort by ID (first to last)
             });
 
             let p = readyQueue[0];
-            p.startTime = currentTime;
-            p.finishTime = p.startTime + p.bt;
-            p.tat = p.finishTime - p.at;
-            p.wt = p.startTime - p.at;
-            p.isCompleted = true;
+            p.startTime = currentTime; // Set process start/arrival time
+            p.finishTime = p.startTime + p.bt; // Set ET (AT + BT)
+            p.tat = p.finishTime - p.at; // Set TAT (ET - AT)
+            p.wt = p.tat - p.bt; // Set WAT (TAT - BT)
+            p.isCompleted = true; // Set completed = true
             completedCount++;
             currentTime = p.finishTime;
         } else {
-            let uncompleted = processes.filter(p => !p.isCompleted);
-            let nextArrival = Math.min(...uncompleted.map(p => p.at));
+            let uncompleted = processes.filter(p => !p.isCompleted); // Check for uncompleted processes
+            let nextArrival = Math.min(...uncompleted.map(p => p.at)); // Get next process
 
-            idleTimes.push({
+            idleTimes.push({ // Push to idleTime[]
                 start: currentTime,
                 end: nextArrival,
                 duration: nextArrival - currentTime
@@ -263,28 +265,28 @@ function solveSRTF() {
     let currentTime = 0;
     let completedCount = 0;
 
-    processes.forEach(p => p.firstStartTime = null);
+    processes.forEach(p => p.firstStartTime = null); // Assign firstStartTime attribute
 
-    while (completedCount < processes.length) {
-        let readyQueue = processes.filter(p => p.at <= currentTime && !p.isCompleted);
+    while (completedCount < processes.length) { // Compare completed tasks with processes left
+        let readyQueue = processes.filter(p => p.at <= currentTime && !p.isCompleted); // Add proesses to ready queue if not yet completed and has not arrived yet/exceeded latest TET
 
         if (readyQueue.length > 0) {
             readyQueue.sort((a, b) => {
-                if (a.remainingTime !== b.remainingTime) return a.remainingTime - b.remainingTime;
-                if (a.at !== b.at) return a.at - b.at;
-                return a.processNumber - b.processNumber;
+                if (a.remainingTime !== b.remainingTime) return a.remainingTime - b.remainingTime; // Sort by BT (shortest to longest)
+                if (a.at !== b.at) return a.at - b.at; // If equal BT/Remaining, sort by AT (first to last)
+                return a.processNumber - b.processNumber; // If equal AT, sort by ID (first to last)
             });
 
             let p = readyQueue[0];
 
             if (p.firstStartTime === null) {
-                p.firstStartTime = currentTime;
+                p.firstStartTime = currentTime; // Save process original start time
             }
 
-            if (ganttData.length > 0 && ganttData[ganttData.length - 1].id === p.id) {
+            if (ganttData.length > 0 && ganttData[ganttData.length - 1].id === p.id) { // ganttData.length > 0 means that there is an ongoing process, checks if the current process is the same as previous
                 ganttData[ganttData.length - 1].end++;
             } else {
-                ganttData.push({
+                ganttData.push({ // Insert new process in ganttData[] i.e a process was preempted
                     id: p.id,
                     start: currentTime,
                     end: currentTime + 1,
@@ -292,21 +294,21 @@ function solveSRTF() {
                 });
             }
 
-            p.remainingTime--;
-            currentTime++;
+            p.remainingTime--; // Deduct BT
+            currentTime++; // ET accumulates
 
-            if (p.remainingTime === 0) {
-                p.isCompleted = true;
-                p.finishTime = currentTime;
-                p.tat = p.finishTime - p.at;
-                p.wt = p.tat - p.bt;
+            if (p.remainingTime === 0) { // Checks if the process completes
+                p.isCompleted = true; // Set completed = true
+                p.finishTime = currentTime; // Set latest ET as process ET (because preemption is possible, cannot compute through AT + BT)
+                p.tat = p.finishTime - p.at; // Set TAT (ET - AT)
+                p.wt = p.tat - p.bt; // Set WT (TAT - BT)
                 completedCount++;
             }
         } else {
-            let uncompleted = processes.filter(p => !p.isCompleted);
-            let nextArrival = Math.min(...uncompleted.map(p => p.at));
+            let uncompleted = processes.filter(p => !p.isCompleted); // Check for uncompleted processes
+            let nextArrival = Math.min(...uncompleted.map(p => p.at)); // Get the next process
 
-            idleTimes.push({
+            idleTimes.push({ // Push to idleTime[]
                 start: currentTime,
                 end: nextArrival,
                 duration: nextArrival - currentTime
